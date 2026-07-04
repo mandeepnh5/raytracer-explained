@@ -1,0 +1,894 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="An interactive, visual explanation of a simple C++ raytracer: rays, hit tests, lighting, shadows and reflections, with live demos.">
+<title>How Your Raytracer Actually Works</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  :root{
+    --bg:#121114; --panel:#1a191d; --panel2:#201f24; --line:#2a2830;
+    --text:#e9e6df; --muted:#a29d93; --amber:#f2b04d; --amber-dim:#8a6a3a;
+    --red:#ff6b5e; --green:#63d68a; --blue:#6f9dff;
+    --serif:'Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;
+    --mono:'Cascadia Code',Consolas,'Courier New',monospace;
+  }
+  html{background:var(--bg);}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--serif);
+    font-size:17px; line-height:1.68; margin:0; padding:0;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px; margin:0 auto; padding:48px 20px 90px;}
+  .prose{max-width:740px;}
+  h1,h2,h3{text-wrap:balance; line-height:1.2; font-weight:700;}
+  h1{font-size:clamp(30px,5.4vw,46px); margin:14px 0 18px;}
+  h2{font-size:clamp(23px,3.4vw,30px); margin:0 0 14px;}
+  h3{font-size:19px; margin:26px 0 8px;}
+  p{margin:0 0 16px;}
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--amber); margin:0 0 6px;
+  }
+  .lineref{
+    font-family:var(--mono); font-size:12px; letter-spacing:.06em;
+    color:var(--muted); text-transform:none;
+  }
+  section{margin-top:84px;}
+  .m{font-family:var(--mono); font-size:.92em; color:var(--text);
+     background:var(--panel2); border:1px solid var(--line);
+     border-radius:4px; padding:1px 6px; white-space:nowrap;}
+  .mm{font-family:var(--mono); font-size:.92em; color:var(--amber); white-space:nowrap;}
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:18px; margin:22px 0;
+  }
+  .panel .cap{
+    font-family:var(--serif); color:var(--muted); font-size:15px;
+    line-height:1.55; margin:12px 2px 0;
+  }
+  canvas{display:block; width:100%; height:auto; border-radius:4px;
+         image-rendering:auto; background:#000;}
+  svg text{font-family:var(--mono);}
+  .stagebar{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px;}
+  .stagebar button{
+    font-family:var(--mono); font-size:13px; letter-spacing:.02em;
+    color:var(--text); background:var(--panel2); border:1px solid var(--line);
+    border-radius:6px; padding:9px 13px; cursor:pointer;
+  }
+  .stagebar button:hover{border-color:var(--amber-dim);}
+  .stagebar button.on{background:var(--amber); border-color:var(--amber); color:#1c150a; font-weight:700;}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--amber); outline-offset:2px;}
+  .ctl{display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+       font-family:var(--mono); font-size:13.5px; color:var(--muted); margin:14px 2px 0;}
+  .ctl label{color:var(--text);}
+  input[type=range]{accent-color:var(--amber); width:min(340px,60vw);}
+  .readout{font-variant-numeric:tabular-nums; color:var(--text);}
+  .swatch{display:inline-block; width:38px; height:20px; border-radius:4px;
+          border:1px solid var(--line); vertical-align:middle;}
+  .analogy{
+    border-left:3px solid var(--amber); background:var(--panel);
+    border-radius:0 8px 8px 0; padding:14px 18px; margin:20px 0; max-width:740px;
+  }
+  .analogy .tag{font-family:var(--mono); font-size:11.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--amber); display:block; margin-bottom:6px;}
+  .analogy p{margin:0; font-size:16px;}
+  pre{
+    font-family:var(--mono); font-size:13.5px; line-height:1.6; color:var(--text);
+    background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:14px 16px; overflow-x:auto; margin:16px 0;
+  }
+  pre .c{color:#7f8a6f;} pre .k{color:var(--amber);}
+  .ledger{border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:22px 0;}
+  .lrow{display:grid; grid-template-columns:44px 1fr; gap:0;
+        border-top:1px solid var(--line); background:var(--panel);}
+  .lrow:first-child{border-top:none;}
+  .lnum{
+    font-family:var(--mono); font-size:13px; color:var(--amber);
+    padding:14px 0 0 14px; font-variant-numeric:tabular-nums;
+  }
+  .lbody{padding:12px 16px 13px 4px; font-size:15.5px; line-height:1.6;}
+  .lbody .math{
+    display:block; font-family:var(--mono); font-size:13px; color:var(--muted);
+    margin-top:5px; overflow-x:auto; white-space:nowrap; padding-bottom:2px;
+    font-variant-numeric:tabular-nums;
+  }
+  .lbody .math b{color:var(--text); font-weight:400;}
+  .quirk{background:var(--panel); border:1px solid var(--line); border-radius:8px;
+         padding:16px 18px; margin:14px 0;}
+  .quirk h3{margin:0 0 6px; font-size:17px;}
+  .quirk p{margin:6px 0 0; font-size:15.5px; color:var(--text);}
+  .quirk .where{font-family:var(--mono); font-size:12px; color:var(--muted);}
+  .recap{border:1px solid var(--amber-dim); border-radius:8px; padding:18px 20px;
+         background:linear-gradient(180deg,#1d1a14,#1a191d); max-width:740px;}
+  .recap ol{margin:8px 0 0; padding-left:22px;}
+  .recap li{margin:7px 0;}
+  .footer{margin-top:80px; font-family:var(--mono); font-size:12.5px; color:var(--muted);}
+  a{color:var(--amber);}
+  @media (prefers-reduced-motion:no-preference){
+    .stagebar button{transition:background .15s,border-color .15s;}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<!-- ================= HERO ================= -->
+<header class="prose">
+  <p class="eyebrow">my-raytracer.cpp, explained with pictures</p>
+  <h1>Your program fires 8,294,400 tiny laser pointers.</h1>
+  <p>In the real world, light leaves a lamp, bounces off a ball, and lands in your
+  eye. Simulating that directly is hopeless â€” almost every photon a lamp emits
+  never reaches the camera, so you'd simulate billions of them for nothing.</p>
+  <p>So your raytracer runs the movie <em>backwards</em>. For each of the
+  3840&nbsp;Ã—&nbsp;2160 = 8,294,400 pixels, it fires one ray <em>out of the
+  camera</em>, sees what that ray hits, and then asks: <em>â€œstanding at this exact
+  spot, how much lamp light would reach me?â€</em> The answer becomes the pixel's
+  colour. That's the entire program. Everything else is bookkeeping.</p>
+</header>
+
+<div class="panel">
+  <div class="stagebar" id="stagebar">
+    <button data-stage="1">1 Â· hit anything?</button>
+    <button data-stage="2">2 Â· + light (NÂ·L)</button>
+    <button data-stage="3">3 Â· + shadows</button>
+    <button data-stage="4" class="on">4 Â· + mirrors</button>
+  </div>
+  <canvas id="hero" width="480" height="270" aria-label="Live render of the raytracer scene"></canvas>
+  <p class="cap" id="heroCap"></p>
+</div>
+
+<p class="prose">This is not a screenshot â€” it's <strong>your scene</strong>
+(same camera at <span class="m">(0, 0, âˆ’10)</span>, same three spheres, same
+three lamps) re-rendered live in this page, in JavaScript, using the same math
+as your C++. Click the buttons to strip the image down to each stage. The rest
+of this page explains each button, one at a time, and ends by computing one real
+pixel by hand.</p>
+
+<!-- ================= STEP 1 ================= -->
+<section>
+  <p class="eyebrow">Step 1 Â· one ray per pixel <span class="lineref">â€” render(), lines 146â€“156</span></p>
+  <h2 class="prose">Turning a pixel into a ray</h2>
+  <div class="prose">
+  <p>Picture the screen as a glass window floating in the 3D world at
+  <span class="m">z = 0</span>, and the camera as an eye ten units behind it at
+  <span class="m">(0, 0, âˆ’10)</span>. To colour a pixel, you draw a straight line
+  from the eye <em>through that pixel's spot on the window</em> and out into the
+  scene. That line is the <strong>ray</strong>.</p>
+  <p>Lines 152â€“153 just convert â€œpixel column x, pixel row yâ€ into â€œwhere on the
+  window is that pixelâ€, as coordinates <span class="m">u</span> (left âˆ’&gt; right)
+  and <span class="m">v</span> (bottom âˆ’&gt; top). Then line 155 builds the ray:
+  start at the camera, aim at <span class="m">(u, v, 0)</span>.</p>
+  </div>
+
+  <div class="analogy">
+    <span class="tag">Everyday analogy</span>
+    <p>Hold a laser pointer at your eye and aim it through one square of a window
+    screen. Whatever the dot lands on â€” that's what you see through that square.
+    Do it for every square and you've â€œseenâ€ the whole scene. A raytracer does
+    exactly this, 8.3 million times.</p>
+  </div>
+
+  <div class="panel">
+    <svg viewBox="0 0 600 470" role="img" aria-label="Top-down diagram: camera, screen, spheres, and one ray">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#f2b04d"/>
+        </marker>
+      </defs>
+      <!-- spheres (top view) -->
+      <circle cx="380" cy="132" r="40" fill="#63d68a" opacity="0.9"/>
+      <circle cx="300" cy="88"  r="40" fill="#ff6b5e" opacity="0.9"/>
+      <circle cx="220" cy="132" r="40" fill="#6f9dff" opacity="0.9"/>
+      <text x="380" y="136" font-size="11" fill="#10130f" text-anchor="middle">green</text>
+      <text x="300" y="92"  font-size="11" fill="#1c0f0d" text-anchor="middle">red</text>
+      <text x="220" y="136" font-size="11" fill="#0e1220" text-anchor="middle">blue</text>
+      <!-- image plane -->
+      <line x1="60" y1="220" x2="540" y2="220" stroke="#5b5763" stroke-dasharray="6 5" stroke-width="1.4"/>
+      <text x="544" y="224" font-size="11.5" fill="#a29d93">the screen (z = 0)</text>
+      <!-- camera -->
+      <circle cx="300" cy="440" r="6" fill="#f2b04d"/>
+      <text x="314" y="445" font-size="12" fill="#a29d93">camera (0, 0, âˆ’10)</text>
+      <!-- ray -->
+      <line id="rayline" x1="300" y1="440" x2="300" y2="30" stroke="#f2b04d" stroke-width="2.2" marker-end="url(#arr)"/>
+      <circle id="raypix" cx="300" cy="220" r="4.5" fill="#f2b04d"/>
+      <circle id="rayhit" cx="300" cy="128" r="6" fill="none" stroke="#e9e6df" stroke-width="2"/>
+      <text id="raypixlabel" x="310" y="238" font-size="11.5" fill="#f2b04d">pixel (u, v)</text>
+    </svg>
+    <div class="ctl">
+      <label for="pixslider">pixel column</label>
+      <input type="range" id="pixslider" min="0" max="479" step="1" value="240">
+      <span class="readout" id="pixreadout"></span>
+      <span class="swatch" id="pixswatch"></span>
+    </div>
+    <canvas id="strip" width="480" height="16" style="margin-top:12px; image-rendering:pixelated;" aria-label="Row of pixel colours produced by the sweeping ray"></canvas>
+    <p class="cap">Drag the slider: the ray sweeps across one row of pixels (seen
+    from above). The strip underneath is the row of colours those rays produce â€”
+    an actual slice of your image being painted, one pixel per ray. Where a ray
+    hits nothing, <span class="lineref">line 86</span> returns black â€” that's the
+    background of your whole render.</p>
+  </div>
+</section>
+
+<!-- ================= STEP 2 ================= -->
+<section>
+  <p class="eyebrow">Step 2 Â· did it hit a ball? <span class="lineref">â€” Sphere::intersect(), lines 43â€“62 and the loop at 77â€“84</span></p>
+  <h2 class="prose">Finding the hit point (what t means)</h2>
+  <div class="prose">
+  <p>A ray is â€œstart walking from the camera in this direction.â€ The number
+  <span class="m">t</span> is simply <strong>how far you've walked</strong>.
+  At <span class="m">t = 0</span> you're at the camera; at
+  <span class="m">t = 14.13</span> you're 14.13 units along the ray. So â€œthe ray
+  hits the sphere at t = 14.13â€ means: <em>walk 14.13 units and you're standing on
+  the sphere's skin.</em></p>
+  <p>The quadratic formula in <span class="m">intersect()</span> exists because a
+  straight line can touch a ball's surface in exactly 0, 1, or 2 places â€” and
+  â€œhow many solutions does this equation haveâ€ is exactly what a quadratic's
+  discriminant <span class="m">d</span> tells you:</p>
+  </div>
+
+  <div class="panel">
+    <svg viewBox="0 0 640 200" role="img" aria-label="Three cases: ray misses sphere, grazes it, or passes through it">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#f2b04d"/>
+        </marker>
+      </defs>
+      <!-- miss -->
+      <circle cx="105" cy="88" r="42" fill="none" stroke="#6f9dff" stroke-width="2.5"/>
+      <line x1="18" y1="160" x2="195" y2="146" stroke="#f2b04d" stroke-width="2" marker-end="url(#arr2)"/>
+      <text x="105" y="192" font-size="12.5" fill="#a29d93" text-anchor="middle">d &lt; 0 Â· miss Â· return false</text>
+      <!-- graze -->
+      <circle cx="320" cy="84" r="42" fill="none" stroke="#6f9dff" stroke-width="2.5"/>
+      <line x1="233" y1="126" x2="410" y2="126" stroke="#f2b04d" stroke-width="2" marker-end="url(#arr2)"/>
+      <circle cx="320" cy="126" r="4.5" fill="#e9e6df"/>
+      <text x="320" y="192" font-size="12.5" fill="#a29d93" text-anchor="middle">d = 0 Â· grazes the edge</text>
+      <!-- two hits -->
+      <circle cx="535" cy="88" r="42" fill="none" stroke="#6f9dff" stroke-width="2.5"/>
+      <line x1="448" y1="118" x2="625" y2="66" stroke="#f2b04d" stroke-width="2" marker-end="url(#arr2)"/>
+      <circle cx="498" cy="103" r="4.5" fill="#e9e6df"/>
+      <circle cx="572" cy="81"  r="4.5" fill="#5b5763"/>
+      <text x="500" y="128" font-size="11" fill="#e9e6df">t0 in</text>
+      <text x="578" y="66"  font-size="11" fill="#a29d93">t1 out</text>
+      <text x="535" y="192" font-size="12.5" fill="#a29d93" text-anchor="middle">d &gt; 0 Â· enters and exits</text>
+    </svg>
+    <p class="cap">When the ray goes through the ball it pierces the skin twice â€”
+    entering (<span class="mm">t0</span>) and leaving (<span class="mm">t1</span>).
+    You can only <em>see</em> the near side, so line 55 keeps the smaller positive
+    one. And line 57 rejects negative t, because a negative t means the ball is
+    <em>behind</em> the camera â€” you walked backwards to reach it.</p>
+  </div>
+
+  <div class="prose">
+  <p>One ray can also hit <em>several different spheres</em> â€” from the camera,
+  the red ball is partly behind the green and blue ones. That's what the loop at
+  lines 77â€“84 handles: test all three spheres, keep whichever hit has the
+  <strong>smallest t</strong>, i.e. the nearest one. Near things cover far
+  things. That single comparison, <span class="m">t &lt; tClosest</span>, is why
+  objects in your image correctly overlap.</p>
+  <p>Once you know the winner, two facts about the hit matter for everything
+  that follows:</p>
+  <p><strong>The hit point</strong> <span class="m">P = origin + direction Â· t</span>
+  (â€œwalk t unitsâ€) â€” the exact spot on the ball's skin, and<br>
+  <strong>the normal</strong> <span class="m">N = (P âˆ’ center)</span>, normalized â€”
+  the direction the surface <em>faces</em> at that spot. For a sphere it's just
+  â€œaway from the centreâ€, like a pin stuck straight out of an orange.</p>
+  </div>
+</section>
+
+<!-- ================= STEP 3 ================= -->
+<section>
+  <p class="eyebrow">Step 3 Â· how bright? <span class="lineref">â€” lines 92â€“94 and 118â€“122</span></p>
+  <h2 class="prose">Light: the one rule that shades everything</h2>
+  <div class="prose">
+  <p>You're standing on the ball at point <span class="m">P</span>. A lamp hangs
+  somewhere in the sky. How brightly does it light this spot? Your whole lighting
+  model is <strong>one line</strong>:</p>
+  </div>
+
+<pre><span class="c">// line 120 â€” the entire theory of light in this program</span>
+float diff = std::max(0.0f, normal.dot(lightDir));
+finalColor = finalColor + (hitSphere-&gt;color * diff);</pre>
+
+  <div class="analogy">
+    <span class="tag">Everyday analogy</span>
+    <p>Hold a sheet of paper under a lamp. Face it straight at the bulb â€” bright.
+    Tilt it â€” dimmer, because the same light now smears over more paper. Turn it
+    edge-on or away â€” dark. Brightness depends only on the <em>angle between the
+    surface and the light</em>. That's also why the sun at noon burns and the sun
+    at sunset doesn't.</p>
+  </div>
+
+  <div class="prose">
+  <p>The dot product <span class="m">N Â· L</span> is just a tilt-o-meter. When
+  the surface faces the lamp dead on, it reads <span class="m">1.0</span> (full
+  brightness). At a slant it reads the cosine of the angle between them. Past
+  90Â° the spot faces away from the lamp entirely and the value goes negative â€”
+  and negative light is nonsense, which is why <span class="m">max(0, â€¦)</span>
+  clamps it. Try it:</p>
+  </div>
+
+  <div class="panel">
+    <svg viewBox="0 0 560 300" role="img" aria-label="Interactive: light angle vs surface brightness">
+      <defs>
+        <marker id="arr3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#e9e6df"/>
+        </marker>
+        <marker id="arr4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#f2b04d"/>
+        </marker>
+      </defs>
+      <clipPath id="clipnl"><rect x="0" y="0" width="560" height="300"/></clipPath>
+      <g clip-path="url(#clipnl)">
+        <circle cx="280" cy="425" r="195" fill="#3a2321" stroke="#ff6b5e" stroke-width="2.5"/>
+      </g>
+      <circle cx="280" cy="230" r="5" fill="#e9e6df"/>
+      <line x1="280" y1="230" x2="280" y2="140" stroke="#e9e6df" stroke-width="2.2" marker-end="url(#arr3)"/>
+      <text x="288" y="148" font-size="12.5" fill="#e9e6df">N (normal)</text>
+      <line id="nlLray" x1="280" y1="230" x2="365" y2="83" stroke="#f2b04d" stroke-width="2.2" marker-end="url(#arr4)"/>
+      <circle id="nlLamp" cx="373" cy="69" r="10" fill="#f2b04d"/>
+      <text id="nlLtext" x="392" y="74" font-size="12.5" fill="#f2b04d">L (to the lamp)</text>
+      <path id="nlArc" d="" fill="none" stroke="#a29d93" stroke-width="1.4"/>
+      <text id="nlAngle" x="296" y="196" font-size="12" fill="#a29d93">30Â°</text>
+      <text x="280" y="285" font-size="12.5" fill="#a29d93" text-anchor="middle">a point on the red ball's skin</text>
+    </svg>
+    <div class="ctl">
+      <label for="nlslider">lamp angle</label>
+      <input type="range" id="nlslider" min="-85" max="85" step="1" value="30">
+      <span class="readout" id="nlreadout"></span>
+      <span class="swatch" id="nlswatch"></span>
+    </div>
+    <p class="cap" id="nlcap"></p>
+  </div>
+
+  <div class="prose">
+  <p>You have <strong>three lamps</strong>, so the loop at line 92 runs this rule
+  three times and <em>adds</em> the results â€” real light adds too, which is why a
+  room with two lamps on is brighter than with one. The sums often blow past 255;
+  lines 158â€“160 clamp them back down. (That's why so much of your image is fully
+  saturated colour: three lamps at once max out most of the lit side.)</p>
+  <p>Notice what NÂ·L quietly gives you for free: the dark undersides of the balls
+  in stage 2 of the hero image. Nobody drew that gradient â€” it's just the tilt
+  rule, evaluated at every pixel.</p>
+  </div>
+</section>
+
+<!-- ================= STEP 4 ================= -->
+<section>
+  <p class="eyebrow">Step 4 Â· is the lamp blocked? <span class="lineref">â€” lines 94â€“107</span></p>
+  <h2 class="prose">Shadows: fire a second ray, at the lamp</h2>
+  <div class="prose">
+  <p>Here's the part people expect to be complicated, and it isn't.
+  <strong>A shadow is nothing extra.</strong> It's the <em>absence</em> of one
+  lamp's contribution. Before the code lets a lamp brighten point
+  <span class="m">P</span>, it asks one question: <em>can this spot actually see
+  that lamp?</em></p>
+  <p>To answer it, fire a second ray â€” a <strong>shadow ray</strong> â€” from
+  <span class="m">P</span> aimed straight at the lamp (line 95). Reuse the exact
+  same <span class="m">intersect()</span> from Step 2 against every other sphere.
+  If <em>anything</em> is in the way, the lamp is blocked:
+  <span class="m">isShadow = true</span>, and line 118 simply <em>skips adding
+  that lamp's light</em>. Less light added = darker pixel = shadow. That's the
+  whole mechanism.</p>
+  </div>
+
+  <div class="panel">
+    <svg viewBox="0 0 640 250" role="img" aria-label="Shadow rays: one clear path to a lamp, one blocked by a sphere">
+      <defs>
+        <marker id="arr5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#f2b04d"/>
+        </marker>
+      </defs>
+      <!-- clear case -->
+      <circle cx="150" cy="40" r="13" fill="#f2b04d"/>
+      <path d="M150 18 v-8 M172 46 l8 2 M128 46 l-8 2 M166 24 l6 -6 M134 24 l-6 -6" stroke="#f2b04d" stroke-width="2"/>
+      <circle cx="150" cy="195" r="34" fill="#3a2321" stroke="#ff6b5e" stroke-width="2.5"/>
+      <circle cx="150" cy="161" r="4.5" fill="#e9e6df"/>
+      <line x1="150" y1="153" x2="150" y2="62" stroke="#f2b04d" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arr5)"/>
+      <text x="150" y="245" font-size="12.5" fill="#a29d93" text-anchor="middle">path clear â†’ lamp counts â†’ lit</text>
+      <!-- blocked case -->
+      <circle cx="470" cy="40" r="13" fill="#f2b04d"/>
+      <path d="M470 18 v-8 M492 46 l8 2 M448 46 l-8 2 M486 24 l6 -6 M454 24 l-6 -6" stroke="#f2b04d" stroke-width="2"/>
+      <circle cx="470" cy="195" r="34" fill="#3a2321" stroke="#ff6b5e" stroke-width="2.5"/>
+      <circle cx="470" cy="161" r="4.5" fill="#e9e6df"/>
+      <circle cx="470" cy="105" r="26" fill="#151d33" stroke="#6f9dff" stroke-width="2.5"/>
+      <line x1="470" y1="153" x2="470" y2="134" stroke="#f2b04d" stroke-width="2" stroke-dasharray="7 5"/>
+      <path d="M462 141 l16 -14 M462 127 l16 14" stroke="#ff6b5e" stroke-width="2.4"/>
+      <text x="470" y="245" font-size="12.5" fill="#a29d93" text-anchor="middle">blocked â†’ skip this lamp â†’ shadow</text>
+    </svg>
+    <p class="cap">Same spot, same lamp, one difference: something in the way.
+    The blocked spot doesn't get painted black â€” it just doesn't receive
+    <em>this</em> lamp's share. If other lamps still see it, it ends up
+    half-lit. Soft-looking, layered shadows fall out of this automatically when
+    you have several lamps.</p>
+  </div>
+
+  <div class="prose">
+  <p>Your real scene has three lamps, and their sums clamp at 255, so shadows in
+  the hero image are subtle. Below is the same scene with <strong>one movable
+  lamp</strong>, so you can watch the mechanism nakedly. Drag the lamp across
+  the sky and watch the blue and green balls throw shadow onto the red one:</p>
+  </div>
+
+  <div class="panel">
+    <canvas id="shadowdemo" width="480" height="270" aria-label="Live render with a single movable lamp"></canvas>
+    <div class="ctl">
+      <label for="lampslider">lamp position (x)</label>
+      <input type="range" id="lampslider" min="-8" max="8" step="0.25" value="-5">
+      <span class="readout" id="lampreadout"></span>
+    </div>
+    <p class="cap">One lamp at <span class="mm" id="lamppos"></span>, shadows on,
+    mirrors off. Two things to watch: the bright side of each ball follows the
+    lamp (that's Step 3), and when the lamp is off to one side, the near ball
+    stamps a dark bite onto the red ball behind it (that's Step 4 â€” its shadow
+    rays are blocked).</p>
+  </div>
+
+  <div class="prose">
+  <p>One detail on line 95 that looks like magic:
+  <span class="m">hitPoint + lightDir * 0.01f</span>. Why start the shadow ray a
+  hair <em>off</em> the surface? Because <span class="m">P</span> sits exactly
+  <em>on</em> the ball's skin, and floating-point rounding can make the shadow
+  ray immediately â€œhitâ€ the very ball it's standing on â€” at
+  <span class="m">t â‰ˆ 0.0000001</span>. The surface would shadow itself in a
+  random speckle pattern (graphics people call it <em>shadow acne</em>). Nudging
+  the start point 0.01 units toward the lamp steps over the problem.</p>
+  </div>
+</section>
+
+<!-- ================= STEP 5 ================= -->
+<section>
+  <p class="eyebrow">Step 5 Â· shiny things <span class="lineref">â€” lines 109â€“116</span></p>
+  <h2 class="prose">Mirrors: the ray bounces and the whole story repeats</h2>
+  <div class="prose">
+  <p>When you look at a mirror you don't see the mirror â€” you see <em>whatever
+  the light bounced off before reaching it</em>. Your code does the same: when a
+  ray hits a shiny ball, it computes the bounce direction and asks
+  <span class="m">trace()</span> â€” <strong>the same function, calling
+  itself</strong> â€” â€œwhat would a ray flying <em>that</em> way see?â€ Whatever
+  colour comes back is what the mirror shows at that spot.</p>
+  </div>
+
+  <div class="panel">
+    <svg viewBox="0 0 640 260" role="img" aria-label="A ray reflecting off a sphere at equal angles">
+      <defs>
+        <marker id="arr6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#f2b04d"/>
+        </marker>
+        <marker id="arr7" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#e9e6df"/>
+        </marker>
+      </defs>
+      <clipPath id="clipr"><rect x="0" y="0" width="640" height="260"/></clipPath>
+      <g clip-path="url(#clipr)">
+        <circle cx="320" cy="420" r="230" fill="#3a2321" stroke="#ff6b5e" stroke-width="2.5"/>
+      </g>
+      <circle cx="320" cy="190" r="5" fill="#e9e6df"/>
+      <line x1="320" y1="190" x2="320" y2="90" stroke="#e9e6df" stroke-width="2" marker-end="url(#arr7)"/>
+      <text x="327" y="98" font-size="12.5" fill="#e9e6df">N</text>
+      <line x1="120" y1="60" x2="313" y2="185" stroke="#f2b04d" stroke-width="2.2" marker-end="url(#arr6)"/>
+      <text x="112" y="48" font-size="12.5" fill="#f2b04d">incoming ray D</text>
+      <line x1="327" y1="185" x2="520" y2="60" stroke="#f2b04d" stroke-width="2.2" stroke-dasharray="8 5" marker-end="url(#arr6)"/>
+      <text x="452" y="48" font-size="12.5" fill="#f2b04d">bounce R</text>
+      <path d="M 292 172 A 34 34 0 0 1 320 156" fill="none" stroke="#a29d93" stroke-width="1.3"/>
+      <path d="M 320 156 A 34 34 0 0 1 348 172" fill="none" stroke="#a29d93" stroke-width="1.3"/>
+      <text x="284" y="150" font-size="12" fill="#a29d93">Î¸</text>
+      <text x="348" y="150" font-size="12" fill="#a29d93">Î¸</text>
+      <text x="320" y="246" font-size="13" fill="#a29d93" text-anchor="middle">line 111:  R = D âˆ’ 2 (D Â· N) N   â€” â€œflip the part of D that points into the surfaceâ€</text>
+    </svg>
+    <p class="cap">Same rule as a billiard ball off a cushion or a torch beam off
+    a mirror: it leaves at the same angle it arrived, mirrored around the
+    normal. The formula is just that sentence written in vectors.</p>
+  </div>
+
+  <div class="prose">
+  <p>Two knobs control what you see:</p>
+  <p><strong>reflectivity</strong> â€” line 115 blends the two colours. Your red
+  ball has <span class="m">reflectivity = 0.7</span>, so its final colour is 30%
+  its own lit red + 70% whatever the bounce ray saw. That's why in stage 4 of the
+  hero image the red ball wears green and blue smears (the bounce rays hit its
+  neighbours) and turns <em>darker</em> overall (most bounce rays fly into empty
+  space, and empty space is black).</p>
+  <p><strong>depth</strong> â€” a mirror can reflect a mirror reflecting a mirrorâ€¦
+  forever. <span class="m">depth = 3</span> is the circuit breaker: each recursive
+  call passes <span class="m">depth âˆ’ 1</span>, and at 0 the bouncing stops. Three
+  bounces: <span class="mm">camera ray â†’ red ball â†’ green ball â†’ sky â†’ stop</span>.</p>
+  </div>
+</section>
+
+<!-- ================= WORKED PIXEL ================= -->
+<section>
+  <p class="eyebrow">All five steps at once, with real numbers</p>
+  <h2 class="prose">Let's compute the exact centre pixel of your image</h2>
+  <p class="prose">Pixel <span class="m">(1920, 1080)</span> â€” dead centre of the
+  3840 Ã— 2160 frame. No hand-waving; every number below comes from your code and
+  your scene.</p>
+
+  <div class="ledger">
+    <div class="lrow"><div class="lnum">1</div><div class="lbody">
+      <strong>Pixel â†’ window spot.</strong> Dead centre of the screen means
+      <span class="m">u â‰ˆ 0, v â‰ˆ 0</span> (lines 152â€“153 give 0.0005 â€” call it 0).
+    </div></div>
+    <div class="lrow"><div class="lnum">2</div><div class="lbody">
+      <strong>Build the ray.</strong> From the camera toward the window spot.
+      <span class="math">origin (0, 0, âˆ’10) &nbsp;â†’&nbsp; (0, 0, 0) &nbsp;â‡’&nbsp; direction <b>(0, 0, 1)</b> â€” straight ahead.</span>
+    </div></div>
+    <div class="lrow"><div class="lnum">3</div><div class="lbody">
+      <strong>Test all three spheres.</strong> Green and blue sit 2 units off to
+      the sides â€” discriminant negative, miss. The red ball at
+      <span class="m">(0, âˆ’0.5, 5)</span>:
+      <span class="math">d = bÂ² âˆ’ 4ac = 900 âˆ’ 897 = <b>3 &gt; 0 â†’ hit!</b> &nbsp; t = (30 âˆ’ âˆš3) / 2 = <b>14.13</b></span>
+    </div></div>
+    <div class="lrow"><div class="lnum">4</div><div class="lbody">
+      <strong>Where are we standing?</strong> Walk 14.13 units straight ahead:
+      <span class="math">P = (0, 0, âˆ’10) + 14.13 Â· (0, 0, 1) = <b>(0, 0, 4.13)</b> â€” the red ball's front, slightly above its centre.</span>
+    </div></div>
+    <div class="lrow"><div class="lnum">5</div><div class="lbody">
+      <strong>Which way does the surface face?</strong>
+      <span class="math">N = P âˆ’ centre = (0, 0.5, âˆ’0.87) â€” <b>up and back toward the camera.</b> (Makes sense: we're a bit above the ball's equator.)</span>
+    </div></div>
+    <div class="lrow"><div class="lnum">6</div><div class="lbody">
+      <strong>Ask lamp 1</strong> at (5, 5, âˆ’2). Shadow ray toward it â€” path
+      clear, no ball in the way.
+      <span class="math">L = (0.53, 0.53, âˆ’0.66) &nbsp;&nbsp; NÂ·L = 0.5Â·0.53 + (âˆ’0.87)Â·(âˆ’0.66) = <b>0.83</b> â€” lit strongly.</span>
+    </div></div>
+    <div class="lrow"><div class="lnum">7</div><div class="lbody">
+      <strong>Ask lamps 2 and 3.</strong> Lamp 2 at (âˆ’5, 5, âˆ’2) is the mirror
+      image of lamp 1: also clear, also <span class="m">0.83</span>. Lamp 3 at
+      (0, 3, 5) is high and behind: clear, but at a slant â€”
+      <span class="m">NÂ·L = 0.24</span>.
+      <span class="math">total light = 0.83 + 0.83 + 0.24 = 1.90 &nbsp;â‡’&nbsp; red channel 255 Ã— 1.90 = 485 â†’ <b>would clamp to a blazing 255</b></span>
+    </div></div>
+    <div class="lrow"><div class="lnum">8</div><div class="lbody">
+      <strong>But the red ball is 70% mirror.</strong> Bounce the ray:
+      <span class="math">R = D âˆ’ 2(DÂ·N)N = <b>(0, 0.87, âˆ’0.5)</b> â€” up and back over the cameraâ€¦ where there is <b>nothing. The mirror sees black.</b></span>
+    </div></div>
+    <div class="lrow"><div class="lnum">9</div><div class="lbody">
+      <strong>Blend.</strong> 30% own lit red + 70% reflected black. Run your
+      exact loop (lines 92â€“123) and out comes
+      <span class="m">(144, 0, 0)</span> &nbsp;<span class="swatch" style="background:rgb(144,0,0)"></span>
+      <span class="math">The centre of your image is <b>dark red, not bright red</b> â€” the ball is mostly mirror, and the mirror there reflects empty sky.</span>
+    </div></div>
+  </div>
+
+  <p class="prose">That's one pixel. Your program repeats this â€” ray, nearest
+  hit, three lamp questions, three shadow rays, a bounce or two â€” 8,294,400
+  times, and the pile of answers <em>is</em> <span class="m">output.ppm</span>.</p>
+</section>
+
+<!-- ================= QUIRKS ================= -->
+<section>
+  <p class="eyebrow">While we're here</p>
+  <h2 class="prose">Three quirks in your code worth knowing about</h2>
+  <p class="prose">Not to criticise â€” each one is invisible until you know the
+  mechanism above, and now you do.</p>
+
+  <div class="quirk">
+    <h3>1 Â· The mirror blend runs inside the lamp loop <span class="where">lines 109â€“116</span></h3>
+    <p>The reflection block sits <em>inside</em> <span class="m">for (auto&amp; ls : lights)</span>,
+    so it executes three times â€” and each pass multiplies the light already
+    collected by <span class="m">(1 âˆ’ 0.7) = 0.3</span> again. Lamp 1's
+    contribution gets squashed by 0.3 Ã— 0.3 before the pixel is done. Net effect:
+    reflective balls come out darker than intended. Move that whole
+    <span class="m">if</span> block to just after the loop and the blend happens
+    once, the standard way.</p>
+  </div>
+
+  <div class="quirk">
+    <h3>2 Â· The bounce ray starts exactly on the surface <span class="where">line 113</span></h3>
+    <p>You already solved this for shadow rays with the
+    <span class="m">+ lightDir * 0.01f</span> nudge on line 95 â€” but the reflected
+    ray gets no nudge, so it can re-hit the very ball it just left at
+    <span class="m">t â‰ˆ 0</span>, the same â€œacneâ€ problem in mirror form. Give it
+    the same treatment: start it at <span class="m">hitPoint + RDirn * 0.01f</span>.</p>
+  </div>
+
+  <div class="quirk">
+    <h3>3 Â· OpenMP writes pixels in finish order, not picture order <span class="where">lines 146, 161â€“162</span></h3>
+    <p>A PPM file is just colours listed top-left to bottom-right â€” the file
+    order <em>is</em> the picture. With
+    <span class="m">#pragma omp parallel for</span>, threads finish pixels in
+    unpredictable order, and <span class="m">critical</span> only stops them
+    writing at the same instant â€” it doesn't restore the order. Compiled with
+    OpenMP on, the image comes out scrambled. Fix: render into a buffer
+    (<span class="m">std::vector</span> indexed by <span class="m">y * width + x</span>),
+    then write the file in one pass at the end â€” which also lets you delete the
+    <span class="m">critical</span> and the per-pixel <span class="m">cout</span>,
+    both of which are massive brakes on your 8-million-pixel loop.</p>
+  </div>
+</section>
+
+<!-- ================= RECAP ================= -->
+<section>
+  <p class="eyebrow">Checkpoint</p>
+  <h2 class="prose">The whole program in five sentences</h2>
+  <div class="recap">
+    <ol>
+      <li>For every pixel, fire one ray from the camera through that pixel's spot
+      on an imaginary window into the scene.</li>
+      <li>Test the ray against every sphere with the quadratic formula and keep
+      the nearest hit â€” or return black if it hits nothing.</li>
+      <li>At the hit point, each lamp contributes
+      <span class="m">colour Ã— max(0, NÂ·L)</span> â€” brightness is just how
+      squarely the surface faces the lamp.</li>
+      <li>Before counting a lamp, fire a shadow ray at it; if another ball blocks
+      the path, skip that lamp â€” that skipped light <em>is</em> the shadow.</li>
+      <li>If the ball is shiny, bounce the ray with
+      <span class="m">R = D âˆ’ 2(DÂ·N)N</span>, let <span class="m">trace()</span>
+      call itself (at most 3 deep), and blend what it sees by reflectivity.</li>
+    </ol>
+  </div>
+</section>
+
+<p class="footer">Companion to my-raytracer.cpp Â· every number, coordinate and
+line reference taken from your actual code Â· the renders on this page run the
+same algorithm live in JavaScript.</p>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // ---------- vector helpers ----------
+  function V(x,y,z){return {x:x,y:y,z:z};}
+  function sub(a,b){return V(a.x-b.x,a.y-b.y,a.z-b.z);}
+  function add(a,b){return V(a.x+b.x,a.y+b.y,a.z+b.z);}
+  function mul(a,t){return V(a.x*t,a.y*t,a.z*t);}
+  function dot(a,b){return a.x*b.x+a.y*b.y+a.z*b.z;}
+  function norm(a){var l=Math.sqrt(dot(a,a));return l>0?mul(a,1/l):a;}
+
+  // ---------- the user's scene, verbatim ----------
+  var SPHERES=[
+    {c:V( 2,-0.5,3), r:1, col:[0,255,0],   refl:0.2, name:"green"},
+    {c:V( 0,-0.5,5), r:1, col:[255,0,0],   refl:0.7, name:"red"},
+    {c:V(-2,-0.5,3), r:1, col:[0,0,255],   refl:0.2, name:"blue"}
+  ];
+  var LIGHTS=[V(5,5,-2),V(-5,5,-2),V(0,3,5)];
+  var CAM=V(0,0,-10);
+
+  function hitSphere(ro,rd,s){
+    var oc=sub(ro,s.c);
+    var b=2*dot(oc,rd);
+    var c=dot(oc,oc)-s.r*s.r;
+    var d=b*b-4*c;
+    if(d<0)return -1;
+    var sq=Math.sqrt(d);
+    var t0=(-b-sq)/2, t1=(-b+sq)/2;
+    var t=t0>1e-4?t0:t1;
+    return t>1e-4?t:-1;
+  }
+
+  function trace(ro,rd,depth,stage,lights){
+    var tBest=1e9,hit=null,i,s,t;
+    for(i=0;i<SPHERES.length;i++){
+      t=hitSphere(ro,rd,SPHERES[i]);
+      if(t>0&&t<tBest){tBest=t;hit=SPHERES[i];}
+    }
+    if(!hit)return [0,0,0];
+    var P=add(ro,mul(rd,tBest));
+    var N=norm(sub(P,hit.c));
+    if(stage<2)return hit.col;
+    var out=[0,0,0],li,j;
+    for(li=0;li<lights.length;li++){
+      var Ld=norm(sub(lights[li],P));
+      if(stage>=3){
+        var so=add(P,mul(Ld,0.01)),blocked=false;
+        for(j=0;j<SPHERES.length;j++){
+          s=SPHERES[j];
+          if(s===hit)continue;
+          t=hitSphere(so,Ld,s);
+          if(t>0.001){blocked=true;break;}
+        }
+        if(blocked)continue;
+      }
+      var diff=Math.max(0,dot(N,Ld));
+      out[0]+=hit.col[0]*diff;
+      out[1]+=hit.col[1]*diff;
+      out[2]+=hit.col[2]*diff;
+    }
+    if(stage>=4&&depth>0&&hit.refl>0.01){
+      var dn=dot(rd,N);
+      var Rd=norm(sub(rd,mul(N,2*dn)));
+      var rc=trace(add(P,mul(Rd,0.01)),Rd,depth-1,stage,lights);
+      out[0]=out[0]*(1-hit.refl)+rc[0]*hit.refl;
+      out[1]=out[1]*(1-hit.refl)+rc[1]*hit.refl;
+      out[2]=out[2]*(1-hit.refl)+rc[2]*hit.refl;
+    }
+    return out;
+  }
+
+  function renderScene(canvas,stage,lights){
+    var w=canvas.width,h=canvas.height;
+    var ctx=canvas.getContext("2d");
+    var img=ctx.createImageData(w,h);
+    var aspect=w/h,i=0,x,y;
+    for(y=0;y<h;y++){
+      var v=1-2*(y+0.5)/h;
+      for(x=0;x<w;x++){
+        var u=(2*(x+0.5)/w-1)*aspect;
+        var rd=norm(sub(V(u,v,0),CAM));
+        var c=trace(CAM,rd,3,stage,lights);
+        img.data[i++]=Math.min(255,Math.max(0,c[0])|0);
+        img.data[i++]=Math.min(255,Math.max(0,c[1])|0);
+        img.data[i++]=Math.min(255,Math.max(0,c[2])|0);
+        img.data[i++]=255;
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }
+
+  // ---------- hero with stage buttons ----------
+  var hero=document.getElementById("hero");
+  var heroCap=document.getElementById("heroCap");
+  var CAPS={
+    1:"Stage 1 â€” geometry only. Each ray asks â€œdid I hit a ball?â€ and paints the ball's raw colour, full strength. Flat, like stickers on black paper. This is lines 71â€“89 with the lighting loop deleted.",
+    2:"Stage 2 â€” the NÂ·L rule (line 120). Every hit point asks the 3 lamps how squarely it faces them. Surfaces facing a lamp glow; surfaces tilting away fade. The balls suddenly look round â€” nobody drew that shading, the tilt rule computed it per pixel.",
+    3:"Stage 3 â€” shadow rays (lines 94â€“107). Before counting a lamp, fire a ray at it; if another ball blocks the path, that lamp is skipped. With 3 lamps the effect here is subtle â€” look along the lower flanks of the red ball. The single-lamp demo in Step 4 makes it obvious.",
+    4:"Stage 4 â€” mirrors (lines 109â€“116). Shiny hit points also fire a bounce ray and blend in whatever it sees. The red ball is 70% mirror: it wears green and blue smears (bounce rays hitting its neighbours) and darkens where its mirror shows only empty black sky."
+  };
+  var bar=document.getElementById("stagebar");
+  var stage=4;
+  function setStage(n){
+    stage=n;
+    var bs=bar.querySelectorAll("button"),i;
+    for(i=0;i<bs.length;i++)bs[i].classList.toggle("on",+bs[i].dataset.stage===n);
+    heroCap.textContent=CAPS[n];
+    renderScene(hero,n,LIGHTS);
+  }
+  bar.addEventListener("click",function(e){
+    var b=e.target.closest("button");
+    if(b)setStage(+b.dataset.stage);
+  });
+  setStage(4);
+
+  // ---------- step 1: ray sweeper (top view, 2D) ----------
+  var CIRCLES=[
+    {x: 2,z:3,fill:"#00ff00",label:"the green ball"},
+    {x: 0,z:5,fill:"#ff0000",label:"the red ball"},
+    {x:-2,z:3,fill:"#0000ff",label:"the blue ball"}
+  ];
+  function hit2d(ox,oz,dx,dz,c){
+    var ocx=ox-c.x,ocz=oz-c.z;
+    var b=2*(ocx*dx+ocz*dz);
+    var cc=ocx*ocx+ocz*ocz-1;
+    var d=b*b-4*cc;
+    if(d<0)return -1;
+    var t=(-b-Math.sqrt(d))/2;
+    return t>0?t:-1;
+  }
+  function trace2d(u){
+    var dx=u,dz=10,l=Math.sqrt(dx*dx+dz*dz);
+    dx/=l;dz/=l;
+    var best=1e9,hit=null,i;
+    for(i=0;i<CIRCLES.length;i++){
+      var t=hit2d(0,-10,dx,dz,CIRCLES[i]);
+      if(t>0&&t<best){best=t;hit=CIRCLES[i];}
+    }
+    return {t:best,hit:hit,dx:dx,dz:dz};
+  }
+  // world(x,z) -> svg coords used in the step-1 diagram
+  function sx(wx){return 300+wx*40;}
+  function sy(wz){return 420-(wz+10)*22;}
+  var pixslider=document.getElementById("pixslider");
+  var pixreadout=document.getElementById("pixreadout");
+  var pixswatch=document.getElementById("pixswatch");
+  var rayline=document.getElementById("rayline");
+  var raypix=document.getElementById("raypix");
+  var rayhit=document.getElementById("rayhit");
+  var raypixlabel=document.getElementById("raypixlabel");
+  var strip=document.getElementById("strip");
+  var ASPECT=16/9;
+
+  function drawStrip(markX){
+    var ctx=strip.getContext("2d");
+    var w=strip.width,h=strip.height,x;
+    for(x=0;x<w;x++){
+      var u=(2*(x+0.5)/w-1)*ASPECT;
+      var r=trace2d(u);
+      ctx.fillStyle=r.hit?r.hit.fill:"#000000";
+      ctx.fillRect(x,0,1,h);
+    }
+    ctx.fillStyle="#ffffff";
+    ctx.fillRect(markX-1,0,2,h);
+  }
+  function updateRay(){
+    var px=+pixslider.value;
+    var u=(2*(px+0.5)/480-1)*ASPECT;
+    var r=trace2d(u);
+    // pixel dot on the screen line (z=0): world x = u
+    raypix.setAttribute("cx",sx(u));
+    raypixlabel.setAttribute("x",sx(u)+10);
+    var msg;
+    if(r.hit){
+      var hx=r.dx*r.t, hz=-10+r.dz*r.t;
+      rayline.setAttribute("x2",sx(hx));
+      rayline.setAttribute("y2",sy(hz));
+      rayhit.style.display="";
+      rayhit.setAttribute("cx",sx(hx));
+      rayhit.setAttribute("cy",sy(hz));
+      pixswatch.style.background=r.hit.fill;
+      msg="pixel "+px+" Â· u = "+u.toFixed(2)+" Â· hits "+r.hit.label+" at t = "+r.t.toFixed(1);
+    }else{
+      // extend ray to top of diagram
+      var T=(8-(-10))/r.dz;
+      rayline.setAttribute("x2",sx(r.dx*T));
+      rayline.setAttribute("y2",sy(8));
+      rayhit.style.display="none";
+      pixswatch.style.background="#000";
+      msg="pixel "+px+" Â· u = "+u.toFixed(2)+" Â· hits nothing â†’ black";
+    }
+    pixreadout.textContent=msg;
+    drawStrip(px);
+  }
+  pixslider.addEventListener("input",updateRay);
+  updateRay();
+
+  // ---------- step 3: NÂ·L interactive ----------
+  var nlslider=document.getElementById("nlslider");
+  var nlreadout=document.getElementById("nlreadout");
+  var nlswatch=document.getElementById("nlswatch");
+  var nlcap=document.getElementById("nlcap");
+  var nlLray=document.getElementById("nlLray");
+  var nlLamp=document.getElementById("nlLamp");
+  var nlLtext=document.getElementById("nlLtext");
+  var nlArc=document.getElementById("nlArc");
+  var nlAngle=document.getElementById("nlAngle");
+  var PX=280,PY=230;
+  function updateNL(){
+    var deg=+nlslider.value;
+    var th=deg*Math.PI/180;
+    var lx=PX+170*Math.sin(th), ly=PY-170*Math.cos(th);
+    nlLray.setAttribute("x2",PX+150*Math.sin(th));
+    nlLray.setAttribute("y2",PY-150*Math.cos(th));
+    nlLamp.setAttribute("cx",lx);
+    nlLamp.setAttribute("cy",ly);
+    nlLtext.setAttribute("x",lx+16);
+    nlLtext.setAttribute("y",ly+5);
+    var cos=Math.cos(th);
+    var bright=Math.round(255*Math.max(0,cos));
+    nlswatch.style.background="rgb("+bright+",0,0)";
+    nlreadout.textContent="angle "+deg+"Â°  Â·  NÂ·L = "+cos.toFixed(2)+"  Â·  red Ã— "+cos.toFixed(2)+" = ("+bright+", 0, 0)";
+    // arc between N (up) and L
+    var a0=-Math.PI/2, a1=-Math.PI/2+th, r=52;
+    var x0=PX+r*Math.cos(a0),y0=PY+r*Math.sin(a0);
+    var x1=PX+r*Math.cos(a1),y1=PY+r*Math.sin(a1);
+    var sweep=th>=0?1:0;
+    nlArc.setAttribute("d","M "+x0.toFixed(1)+" "+y0.toFixed(1)+" A "+r+" "+r+" 0 0 "+sweep+" "+x1.toFixed(1)+" "+y1.toFixed(1));
+    nlAngle.textContent=Math.abs(deg)+"Â°";
+    nlAngle.setAttribute("x",PX+(th>=0?62:-92)*0.7+8);
+    if(Math.abs(deg)<15)nlcap.textContent="Nearly head-on: the surface faces the lamp squarely, NÂ·L â‰ˆ 1, full brightness. This is the top of your balls, right under the lamps.";
+    else if(Math.abs(deg)<60)nlcap.textContent="Slanted: the same lamplight smears over more surface, so each point gets less. NÂ·L = cos(angle) measures exactly how much less.";
+    else nlcap.textContent="Grazing: the lamp barely skims this spot â€” NÂ·L is small, the surface is dim. Past 90Â° it would go negative (facing away), and max(0, â€¦) on line 120 clamps it to zero: no light at all.";
+  }
+  nlslider.addEventListener("input",updateNL);
+  updateNL();
+
+  // ---------- step 4: single-lamp shadow demo ----------
+  var sd=document.getElementById("shadowdemo");
+  var lampslider=document.getElementById("lampslider");
+  var lampreadout=document.getElementById("lampreadout");
+  var lamppos=document.getElementById("lamppos");
+  var lampPending=false;
+  function updateLamp(){
+    var lx=+lampslider.value;
+    lampreadout.textContent="lamp at ("+lx.toFixed(1)+", 5, âˆ’2)";
+    lamppos.textContent="("+lx.toFixed(1)+", 5, âˆ’2)";
+    if(!lampPending){
+      lampPending=true;
+      requestAnimationFrame(function(){
+        lampPending=false;
+        renderScene(sd,3,[V(+lampslider.value,5,-2)]);
+      });
+    }
+  }
+  lampslider.addEventListener("input",updateLamp);
+  updateLamp();
+})();
+</script>
+
+</body>
+</html>
+
+
