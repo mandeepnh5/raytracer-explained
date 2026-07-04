@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="An interactive, visual explanation of a simple C++ raytracer: rays, hit tests, lighting, shadows and reflections, with live demos.">
+<meta name="description" content="An interactive, visual explanation of a simple C++ raytracer: rays, hit tests, lighting, shadows and reflections, with live demos and live maths.">
 <title>How Your Raytracer Actually Works</title>
 <style>
   *,*::before,*::after{box-sizing:border-box}
@@ -104,6 +104,20 @@
          background:linear-gradient(180deg,#1d1a14,#1a191d); max-width:740px;}
   .recap ol{margin:8px 0 0; padding-left:22px;}
   .recap li{margin:7px 0;}
+  .mathbox{font-family:var(--mono); font-size:13px; line-height:1.8; color:var(--muted);
+    background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:12px 14px; margin:14px 0 0; overflow-x:auto; font-variant-numeric:tabular-nums;}
+  .mathbox b{color:var(--text); font-weight:600;}
+  .mathbox .good{color:#8fd694;} .mathbox .bad{color:#ef8f86;} .mathbox .amb{color:var(--amber);}
+  .mtable{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px;
+    font-variant-numeric:tabular-nums; margin:10px 0 4px;}
+  .mtable th{color:var(--muted); font-weight:400; text-align:left; padding:4px 12px 6px 0;
+    border-bottom:1px solid var(--line);}
+  .mtable td{padding:6px 12px 6px 0; border-bottom:1px solid var(--line); color:var(--text); white-space:nowrap;}
+  .mtable tr:last-child td{border-bottom:none;}
+  .mtable .win td{color:var(--amber);}
+  .dot{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px;}
+  .mhr{border:none; border-top:1px solid var(--line); margin:10px 0;}
   .footer{margin-top:80px; font-family:var(--mono); font-size:12.5px; color:var(--muted);}
   a{color:var(--amber);}
   @media (prefers-reduced-motion:no-preference){
@@ -138,6 +152,8 @@
   </div>
   <canvas id="hero" width="480" height="270" aria-label="Live render of the raytracer scene"></canvas>
   <p class="cap" id="heroCap"></p>
+  <p class="cap" style="color:var(--amber);">Click anywhere on the image â€” a ball, the background, a dark edge â€” and the
+  pixel inspector below will print that exact pixel's full computation, every number included.</p>
 </div>
 
 <p class="prose">This is not a screenshot â€” it's <strong>your scene</strong>
@@ -146,6 +162,16 @@ three lamps) re-rendered live in this page, in JavaScript, using the same math
 as your C++. Click the buttons to strip the image down to each stage. The rest
 of this page explains each button, one at a time, and ends by computing one real
 pixel by hand.</p>
+
+<div class="panel">
+  <p class="eyebrow" style="margin-bottom:2px;">Pixel inspector</p>
+  <p class="cap" style="margin:0 0 12px;">Click anywhere on the render above.
+  The real algorithm runs for that one pixel and prints every number it
+  computes: the ray, all three balls' answers, and each lamp's brightness and
+  shadow test. Try a bright spot, a dark edge, the background, the place where
+  one ball hides behind another.</p>
+  <div id="inspector" class="mathbox" style="margin-top:0;">â† click the image above to fill this boxâ€¦</div>
+</div>
 
 <!-- ================= STEP 1 ================= -->
 <section>
@@ -204,10 +230,15 @@ pixel by hand.</p>
       <span class="swatch" id="pixswatch"></span>
     </div>
     <canvas id="strip" width="480" height="16" style="margin-top:12px; image-rendering:pixelated;" aria-label="Row of pixel colours produced by the sweeping ray"></canvas>
+    <div id="sweepmath" class="mathbox" aria-live="polite"></div>
     <p class="cap">Drag the slider: the ray sweeps across one row of pixels (seen
-    from above). The strip underneath is the row of colours those rays produce â€”
-    an actual slice of your image being painted, one pixel per ray. Where a ray
-    hits nothing, <span class="lineref">line 86</span> returns black â€” that's the
+    from above), and the box shows <strong>each ball's live answer</strong> â€”
+    the exact numbers <span class="lineref">intersect() (lines 45â€“55)</span>
+    computes. <span class="mm">d</span> is the discriminant: negative means "your
+    line misses me", positive means "you touch me at distance t". Three balls are
+    told apart by nothing more than <em>who answers yes with the smallest t</em>.
+    The strip underneath is the row of colours those rays produce. Where every
+    ball says no, <span class="lineref">line 86</span> returns black â€” that's the
     background of your whole render.</p>
   </div>
 </section>
@@ -340,6 +371,7 @@ finalColor = finalColor + (hitSphere-&gt;color * diff);</pre>
       <span class="readout" id="nlreadout"></span>
       <span class="swatch" id="nlswatch"></span>
     </div>
+    <div id="nlmath" class="mathbox" aria-live="polite"></div>
     <p class="cap" id="nlcap"></p>
   </div>
 
@@ -408,22 +440,30 @@ finalColor = finalColor + (hitSphere-&gt;color * diff);</pre>
   <div class="prose">
   <p>Your real scene has three lamps, and their sums clamp at 255, so shadows in
   the hero image are subtle. Below is the same scene with <strong>one movable
-  lamp</strong>, so you can watch the mechanism nakedly. Drag the lamp across
-  the sky and watch the blue and green balls throw shadow onto the red one:</p>
+  lamp</strong>, lowered to ball height so the shadows are dramatic. The
+  <strong>white ring</strong> marks one exact point on the red ball, and the box
+  under the slider recomputes that point's lighting live as you drag. Slide the
+  lamp from the far right to the far left and the ringed point goes through
+  three different fates â€” dark (facing away), lit, then dark again
+  (<em>blocked</em>) â€” and only the last one is a shadow:</p>
   </div>
 
   <div class="panel">
     <canvas id="shadowdemo" width="480" height="270" aria-label="Live render with a single movable lamp"></canvas>
     <div class="ctl">
       <label for="lampslider">lamp position (x)</label>
-      <input type="range" id="lampslider" min="-8" max="8" step="0.25" value="-5">
+      <input type="range" id="lampslider" min="-8" max="8" step="0.25" value="-0.5">
       <span class="readout" id="lampreadout"></span>
     </div>
+    <div id="shadowmath" class="mathbox" aria-live="polite"></div>
     <p class="cap">One lamp at <span class="mm" id="lamppos"></span>, shadows on,
-    mirrors off. Two things to watch: the bright side of each ball follows the
-    lamp (that's Step 3), and when the lamp is off to one side, the near ball
-    stamps a dark bite onto the red ball behind it (that's Step 4 â€” its shadow
-    rays are blocked).</p>
+    mirrors off. The bright side of every ball follows the lamp (Step 3). Around
+    <span class="mm">x â‰ˆ âˆ’1.5</span> the blue ball slides between the ringed
+    point and the lamp â€” watch the discriminant in the box flip from negative
+    (miss) to positive (HIT) at that exact moment, the lamp gets skipped, and the
+    point goes dark. Dark-because-facing-away and dark-because-blocked look
+    similar in the image, but the maths shows they're completely different
+    events.</p>
   </div>
 
   <div class="prose">
@@ -743,31 +783,31 @@ same algorithm live in JavaScript.</p>
   });
   setStage(4);
 
-  // ---------- step 1: ray sweeper (top view, 2D) ----------
-  var CIRCLES=[
-    {x: 2,z:3,fill:"#00ff00",label:"the green ball"},
-    {x: 0,z:5,fill:"#ff0000",label:"the red ball"},
-    {x:-2,z:3,fill:"#0000ff",label:"the blue ball"}
-  ];
-  function hit2d(ox,oz,dx,dz,c){
-    var ocx=ox-c.x,ocz=oz-c.z;
-    var b=2*(ocx*dx+ocz*dz);
-    var cc=ocx*ocx+ocz*ocz-1;
-    var d=b*b-4*cc;
-    if(d<0)return -1;
-    var t=(-b-Math.sqrt(d))/2;
-    return t>0?t:-1;
+  // ---------- helpers for the live maths boxes ----------
+  function fmt(n){var x=Math.abs(n)<0.005?0:n;return x.toFixed(2);}
+  function vstr(v){return "("+fmt(v.x)+", "+fmt(v.y)+", "+fmt(v.z)+")";}
+  // same test as hitSphere, but returns the intermediate numbers too
+  function sphereMath(ro,rd,s){
+    var oc=sub(ro,s.c);
+    var b=2*dot(oc,rd);
+    var c=dot(oc,oc)-s.r*s.r;
+    var d=b*b-4*c;
+    if(d<0)return{b:b,c:c,d:d,t:-1};
+    var sq=Math.sqrt(d),t0=(-b-sq)/2,t1=(-b+sq)/2,t=t0>1e-4?t0:t1;
+    return{b:b,c:c,d:d,t:(t>1e-4?t:-1)};
   }
-  function trace2d(u){
-    var dx=u,dz=10,l=Math.sqrt(dx*dx+dz*dz);
-    dx/=l;dz/=l;
-    var best=1e9,hit=null,i;
-    for(i=0;i<CIRCLES.length;i++){
-      var t=hit2d(0,-10,dx,dz,CIRCLES[i]);
-      if(t>0&&t<best){best=t;hit=CIRCLES[i];}
+  function closestMath(ro,rd){
+    var best=1e9,hit=null,i,ms=[];
+    for(i=0;i<SPHERES.length;i++){
+      var m=sphereMath(ro,rd,SPHERES[i]);
+      ms.push(m);
+      if(m.t>0&&m.t<best){best=m.t;hit=SPHERES[i];}
     }
-    return {t:best,hit:hit,dx:dx,dz:dz};
+    return{t:best,hit:hit,maths:ms};
   }
+  var PURE={green:"#00ff00",red:"#ff0000",blue:"#0000ff"};
+
+  // ---------- step 1: ray sweeper ----------
   // world(x,z) -> svg coords used in the step-1 diagram
   function sx(wx){return 300+wx*40;}
   function sy(wz){return 420-(wz+10)*22;}
@@ -779,6 +819,7 @@ same algorithm live in JavaScript.</p>
   var rayhit=document.getElementById("rayhit");
   var raypixlabel=document.getElementById("raypixlabel");
   var strip=document.getElementById("strip");
+  var sweepmath=document.getElementById("sweepmath");
   var ASPECT=16/9;
 
   function drawStrip(markX){
@@ -786,8 +827,8 @@ same algorithm live in JavaScript.</p>
     var w=strip.width,h=strip.height,x;
     for(x=0;x<w;x++){
       var u=(2*(x+0.5)/w-1)*ASPECT;
-      var r=trace2d(u);
-      ctx.fillStyle=r.hit?r.hit.fill:"#000000";
+      var r=closestMath(CAM,norm(V(u,0,10)));
+      ctx.fillStyle=r.hit?PURE[r.hit.name]:"#000000";
       ctx.fillRect(x,0,1,h);
     }
     ctx.fillStyle="#ffffff";
@@ -796,30 +837,39 @@ same algorithm live in JavaScript.</p>
   function updateRay(){
     var px=+pixslider.value;
     var u=(2*(px+0.5)/480-1)*ASPECT;
-    var r=trace2d(u);
-    // pixel dot on the screen line (z=0): world x = u
+    var rd=norm(V(u,0,10));
+    var r=closestMath(CAM,rd);
     raypix.setAttribute("cx",sx(u));
     raypixlabel.setAttribute("x",sx(u)+10);
     var msg;
     if(r.hit){
-      var hx=r.dx*r.t, hz=-10+r.dz*r.t;
-      rayline.setAttribute("x2",sx(hx));
-      rayline.setAttribute("y2",sy(hz));
+      var P=add(CAM,mul(rd,r.t));
+      rayline.setAttribute("x2",sx(P.x));
+      rayline.setAttribute("y2",sy(P.z));
       rayhit.style.display="";
-      rayhit.setAttribute("cx",sx(hx));
-      rayhit.setAttribute("cy",sy(hz));
-      pixswatch.style.background=r.hit.fill;
-      msg="pixel "+px+" Â· u = "+u.toFixed(2)+" Â· hits "+r.hit.label+" at t = "+r.t.toFixed(1);
+      rayhit.setAttribute("cx",sx(P.x));
+      rayhit.setAttribute("cy",sy(P.z));
+      pixswatch.style.background=PURE[r.hit.name];
+      msg="pixel "+px+" Â· u = "+u.toFixed(2)+" Â· sees the "+r.hit.name+" ball at t = "+r.t.toFixed(2);
     }else{
-      // extend ray to top of diagram
-      var T=(8-(-10))/r.dz;
-      rayline.setAttribute("x2",sx(r.dx*T));
+      var T=18/rd.z;
+      rayline.setAttribute("x2",sx(rd.x*T));
       rayline.setAttribute("y2",sy(8));
       rayhit.style.display="none";
       pixswatch.style.background="#000";
       msg="pixel "+px+" Â· u = "+u.toFixed(2)+" Â· hits nothing â†’ black";
     }
     pixreadout.textContent=msg;
+    var html='ray: start (0, 0, âˆ’10) Â· direction ('+fmt(rd.x)+', 0.00, '+fmt(rd.z)+') Â· a = 1 (direction is normalized)';
+    html+='<table class="mtable"><tr><th>ball</th><th>b</th><th>c</th><th>d = bÂ²âˆ’4c</th><th>â€œdoes the line touch you?â€</th></tr>';
+    for(var i=0;i<SPHERES.length;i++){
+      var s=SPHERES[i],m=r.maths[i];
+      var verdict=m.d<0?'<span class="bad">no â€” d &lt; 0</span>':(m.t>0?'<span class="good">yes, at t = '+m.t.toFixed(2)+'</span>':'behind camera');
+      if(s===r.hit)verdict+=' <span class="amb">â† smallest t: THIS is what you see</span>';
+      html+='<tr'+(s===r.hit?' class="win"':'')+'><td><span class="dot" style="background:'+PURE[s.name]+'"></span>'+s.name+'</td><td>'+fmt(m.b)+'</td><td>'+fmt(m.c)+'</td><td>'+fmt(m.d)+'</td><td>'+verdict+'</td></tr>';
+    }
+    html+='</table>';
+    sweepmath.innerHTML=html;
     drawStrip(px);
   }
   pixslider.addEventListener("input",updateRay);
@@ -835,6 +885,7 @@ same algorithm live in JavaScript.</p>
   var nlLtext=document.getElementById("nlLtext");
   var nlArc=document.getElementById("nlArc");
   var nlAngle=document.getElementById("nlAngle");
+  var nlmath=document.getElementById("nlmath");
   var PX=280,PY=230;
   function updateNL(){
     var deg=+nlslider.value;
@@ -850,6 +901,12 @@ same algorithm live in JavaScript.</p>
     var bright=Math.round(255*Math.max(0,cos));
     nlswatch.style.background="rgb("+bright+",0,0)";
     nlreadout.textContent="angle "+deg+"Â°  Â·  NÂ·L = "+cos.toFixed(2)+"  Â·  red Ã— "+cos.toFixed(2)+" = ("+bright+", 0, 0)";
+    var sn=Math.sin(th),df=Math.max(0,cos);
+    nlmath.innerHTML=
+      'the two arrows as vectors: &nbsp;N = (0.00, 1.00, 0.00) &nbsp;Â·&nbsp; LÌ‚ = ('+fmt(sn)+', '+fmt(cos)+', 0.00)<br>'+
+      'diff = NÂ·L = 0.00Ã—'+fmt(sn)+' + 1.00Ã—'+fmt(cos)+' + 0.00Ã—0.00 = <b>'+fmt(cos)+'</b> &nbsp;(this is line 120)<br>'+
+      'colour added = stored colour Ã— diff = (255, 0, 0) Ã— '+fmt(df)+' = (255Ã—'+fmt(df)+', 0Ã—'+fmt(df)+', 0Ã—'+fmt(df)+') = <b>('+bright+', 0, 0)</b><br>'+
+      '<span class="amb">the green and blue channels are 0, and 0 Ã— anything = 0 â€” so light changes a ballâ€™s brightness, never its hue</span>';
     // arc between N (up) and L
     var a0=-Math.PI/2, a1=-Math.PI/2+th, r=52;
     var x0=PX+r*Math.cos(a0),y0=PY+r*Math.sin(a0);
@@ -870,21 +927,128 @@ same algorithm live in JavaScript.</p>
   var lampslider=document.getElementById("lampslider");
   var lampreadout=document.getElementById("lampreadout");
   var lamppos=document.getElementById("lamppos");
+  var shadowmath=document.getElementById("shadowmath");
+  // the white-ring point: on the red ball's left-front, and its normal
+  var SPT=V(-0.9,-0.5,4.564), SNRM=V(-0.9,0,-0.436);
   var lampPending=false;
+  function shadowMathHTML(lamp){
+    var Lv=sub(lamp,SPT),len=Math.sqrt(dot(Lv,Lv)),Ln=mul(Lv,1/len);
+    var ndl=dot(SNRM,Ln);
+    var h='white-ring point P = (âˆ’0.90, âˆ’0.50, 4.56), its normal N = (âˆ’0.90, 0.00, âˆ’0.44)<br>';
+    h+='L = lamp âˆ’ P = '+vstr(Lv)+' â†’ length '+fmt(len)+' â†’ LÌ‚ = '+vstr(Ln)+'<br>';
+    h+='NÂ·L = (âˆ’0.90)Ã—'+fmt(Ln.x)+' + 0.00Ã—'+fmt(Ln.y)+' + (âˆ’0.44)Ã—'+fmt(Ln.z)+' = <b>'+fmt(ndl)+'</b><br>';
+    if(ndl<=0){
+      h+='<span class="bad">NÂ·L is negative â†’ P faces AWAY from the lamp â†’ max(0, NÂ·L) = 0, no light. Dark â€” but NOT a shadow: nothing is blocking anything.</span>';
+      return h;
+    }
+    var so=add(SPT,mul(Ln,0.01)),blocked=null,i;
+    for(i=0;i<SPHERES.length;i++){
+      var s=SPHERES[i];
+      if(s.name==="red")continue;
+      var m=sphereMath(so,Ln,s);
+      h+='shadow ray vs '+s.name+' ball: d = '+fmt(m.d)+(m.t>0.001?' â†’ <span class="bad">HIT at t = '+fmt(m.t)+'</span>':' â†’ <span class="good">misses</span>')+'<br>';
+      if(m.t>0.001&&!blocked)blocked=s;
+    }
+    if(blocked){
+      h+='<span class="bad">the '+blocked.name+' ball stands between P and the lamp â†’ isShadow = true â†’ lamp skipped â†’ adds (0, 0, 0). The '+Math.round(255*ndl)+' of red that P WOULD have received is missing â€” that missing light IS the shadow.</span>';
+    }else{
+      var br=Math.round(255*ndl);
+      h+='<span class="good">path clear â†’ P is lit: adds (255, 0, 0) Ã— '+fmt(ndl)+' = ('+br+', 0, 0)</span> <span class="swatch" style="background:rgb('+br+',0,0)"></span>';
+    }
+    return h;
+  }
   function updateLamp(){
     var lx=+lampslider.value;
-    lampreadout.textContent="lamp at ("+lx.toFixed(1)+", 5, âˆ’2)";
-    lamppos.textContent="("+lx.toFixed(1)+", 5, âˆ’2)";
+    lampreadout.textContent="lamp at ("+lx.toFixed(1)+", 0.5, âˆ’3)";
+    lamppos.textContent="("+lx.toFixed(1)+", 0.5, âˆ’3)";
+    shadowmath.innerHTML='lamp at ('+lx.toFixed(2)+', 0.50, âˆ’3.00)<br>'+shadowMathHTML(V(lx,0.5,-3));
     if(!lampPending){
       lampPending=true;
       requestAnimationFrame(function(){
         lampPending=false;
-        renderScene(sd,3,[V(+lampslider.value,5,-2)]);
+        renderScene(sd,3,[V(+lampslider.value,0.5,-3)]);
+        var ctx=sd.getContext("2d");
+        ctx.strokeStyle="#ffffff";ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(156.5,181,7,0,6.2832);ctx.stroke();
       });
     }
   }
   lampslider.addEventListener("input",updateLamp);
   updateLamp();
+
+  // ---------- pixel inspector ----------
+  var insp=document.getElementById("inspector");
+  hero.style.cursor="crosshair";
+  function inspectPixel(px,py){
+    var aspect=480/270;
+    var u=(2*(px+0.5)/480-1)*aspect;
+    var v=1-2*(py+0.5)/270;
+    var rd=norm(V(u,v,10));
+    var h='<b>PIXEL ('+px+', '+py+')</b> â€” full maths for stages 1â€“3 (mirror bounce left out so the numbers stay readable)<br>';
+    h+='u = (2Ã—'+(px+0.5)+'/480 âˆ’ 1) Ã— 1.78 = <b>'+fmt(u)+'</b> &nbsp;Â·&nbsp; v = 1 âˆ’ 2Ã—'+(py+0.5)+'/270 = <b>'+fmt(v)+'</b><br>';
+    h+='ray: start (0, 0, âˆ’10), aim at ('+fmt(u)+', '+fmt(v)+', 0) on the window â†’ direction '+vstr(rd)+' (normalized)';
+    h+='<hr class="mhr"><b>STEP 1 Â· ask every ball: â€œdoes my line touch you?â€</b>';
+    var r=closestMath(CAM,rd);
+    h+='<table class="mtable"><tr><th>ball</th><th>b</th><th>c</th><th>d = bÂ²âˆ’4c</th><th>answer</th></tr>';
+    for(var i=0;i<SPHERES.length;i++){
+      var s=SPHERES[i],m=r.maths[i];
+      var verdict=m.d<0?'<span class="bad">no â€” d &lt; 0</span>':(m.t>0?'<span class="good">yes, at t = '+m.t.toFixed(2)+'</span>':'behind camera');
+      if(s===r.hit)verdict+=' <span class="amb">â† smallest t: you see THIS ball</span>';
+      h+='<tr'+(s===r.hit?' class="win"':'')+'><td><span class="dot" style="background:'+PURE[s.name]+'"></span>'+s.name+'</td><td>'+fmt(m.b)+'</td><td>'+fmt(m.c)+'</td><td>'+fmt(m.d)+'</td><td>'+verdict+'</td></tr>';
+    }
+    h+='</table>';
+    if(!r.hit){
+      h+='all three said no â†’ this pixel is <b>background black (0, 0, 0)</b> â€” line 86. No object, no lighting, done.';
+      return h;
+    }
+    var P=add(CAM,mul(rd,r.t)),N=norm(sub(P,r.hit.c));
+    h+='<hr class="mhr"><b>STEP 2 Â· where are we standing, which way does the surface face?</b><br>';
+    h+='hit point P = start + direction Ã— '+fmt(r.t)+' = <b>'+vstr(P)+'</b><br>';
+    h+='normal N = P âˆ’ centre '+vstr(r.hit.c)+', normalized = <b>'+vstr(N)+'</b><br>';
+    h+='stored colour of the '+r.hit.name+' ball: <b>('+r.hit.col.join(', ')+')</b> â€” looked up, not computed. Only its brightness is computed, next:';
+    var sum=[0,0,0];
+    for(i=0;i<LIGHTS.length;i++){
+      var lamp=LIGHTS[i];
+      var Lv=sub(lamp,P),len=Math.sqrt(dot(Lv,Lv)),Ln=mul(Lv,1/len);
+      h+='<hr class="mhr"><b>STEP 3 Â· lamp '+(i+1)+' at '+vstr(lamp)+'</b><br>';
+      h+='LÌ‚ = (lamp âˆ’ P) Ã· '+fmt(len)+' = '+vstr(Ln)+'<br>';
+      var ndl=dot(N,Ln);
+      h+='NÂ·L = '+fmt(N.x)+'Ã—'+fmt(Ln.x)+' + '+fmt(N.y)+'Ã—'+fmt(Ln.y)+' + '+fmt(N.z)+'Ã—'+fmt(Ln.z)+' = <b>'+fmt(ndl)+'</b><br>';
+      if(ndl<=0){
+        h+='<span class="bad">â‰¤ 0 â†’ this spot faces away from lamp '+(i+1)+' â†’ max(0, NÂ·L) = 0 â†’ adds nothing</span>';
+        continue;
+      }
+      var so=add(P,mul(Ln,0.01)),blocked=null;
+      for(var j=0;j<SPHERES.length;j++){
+        var s2=SPHERES[j];
+        if(s2===r.hit)continue;
+        var m2=sphereMath(so,Ln,s2);
+        h+='shadow ray vs '+s2.name+': d = '+fmt(m2.d)+(m2.t>0.001?' â†’ <span class="bad">HIT</span>':' â†’ <span class="good">miss</span>')+'<br>';
+        if(m2.t>0.001&&!blocked)blocked=s2;
+      }
+      if(blocked){
+        h+='<span class="bad">blocked by the '+blocked.name+' ball â†’ lamp '+(i+1)+' is skipped â†’ adds (0, 0, 0). This pixel is in shadow for this lamp.</span>';
+        continue;
+      }
+      var c0=r.hit.col[0]*ndl,c1=r.hit.col[1]*ndl,c2=r.hit.col[2]*ndl;
+      sum[0]+=c0;sum[1]+=c1;sum[2]+=c2;
+      h+='<span class="good">path clear â†’ adds ('+r.hit.col.join(', ')+') Ã— '+fmt(ndl)+' = ('+Math.round(c0)+', '+Math.round(c1)+', '+Math.round(c2)+')</span>';
+    }
+    var R=Math.min(255,Math.max(0,Math.round(sum[0])));
+    var G=Math.min(255,Math.max(0,Math.round(sum[1])));
+    var B=Math.min(255,Math.max(0,Math.round(sum[2])));
+    h+='<hr class="mhr"><b>TOTAL</b> = ('+Math.round(sum[0])+', '+Math.round(sum[1])+', '+Math.round(sum[2])+') â†’ clamp each channel to 0â€¦255 â†’ <b>('+R+', '+G+', '+B+')</b> <span class="swatch" style="background:rgb('+R+','+G+','+B+')"></span>';
+    if(r.hit.refl>0.01){
+      h+='<br><span class="amb">stage 4 note: this ball has reflectivity '+r.hit.refl+', so the render also blends in '+Math.round(r.hit.refl*100)+'% of whatever its mirror-bounce ray sees â€” that is why the pixel above can look different from this total.</span>';
+    }
+    return h;
+  }
+  hero.addEventListener("click",function(e){
+    var rect=hero.getBoundingClientRect();
+    var px=Math.min(479,Math.max(0,Math.floor((e.clientX-rect.left)/rect.width*480)));
+    var py=Math.min(269,Math.max(0,Math.floor((e.clientY-rect.top)/rect.height*270)));
+    insp.innerHTML=inspectPixel(px,py);
+  });
 })();
 </script>
 
